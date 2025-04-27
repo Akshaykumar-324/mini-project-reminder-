@@ -90,107 +90,107 @@
 //     cancelAlarmNotification,
 //   };
 // }
-import { useCallback, useContext, useEffect } from 'react';
+
+import { useCallback, useContext } from 'react';
 import { Platform } from 'react-native';
 import { NotificationContext } from '@/providers/NotificationProvider';
 import { Alarm } from '@/types/alarm';
-import { getNextAlarmDate } from '@/utils/timeUtils';
+import { getSecondsUntilNextAlarm } from '@/utils/timeUtils';
 
 export function useNotifications() {
-  const { 
+  const {
     hasPermission,
     requestPermission,
     scheduleNotification,
     cancelNotification
   } = useContext(NotificationContext);
 
-  // Helper function to ensure the time calculation is correct
-  const ensureValidNextAlarmTime = (alarm: Alarm) => {
-    const nextAlarmDate = getNextAlarmDate(alarm);
-    
-    if (!nextAlarmDate) {
-      console.warn('Could not calculate next alarm date');
-      return null;
-    }
-    
-    const now = new Date();
-    // If the calculated time is less than 5 seconds in the future, it's probably wrong
-    if (nextAlarmDate.getTime() - now.getTime() < 5000) {
-      console.warn('Next alarm time is too close to current time, adjusting');
-      // Try to find the next day's occurrence instead
-      const adjustedDate = new Date(nextAlarmDate);
-      adjustedDate.setDate(adjustedDate.getDate() + 1);
-      return adjustedDate;
-    }
-    
-    return nextAlarmDate;
-  };
-
   const scheduleAlarmNotification = useCallback(async (alarm: Alarm) => {
     if (Platform.OS === 'web') {
       console.log('Notifications not supported on web');
       return false;
     }
-    
+
     if (!hasPermission) {
       const granted = await requestPermission();
-      if (!granted) {
-        console.log('Notification permission not granted');
-        return false;
-      }
+      if (!granted) return false;
     }
-    
-    if (!alarm.isActive) {
-      console.log('Alarm is not active, skipping notification scheduling');
-      return false;
-    }
-    
+
+    if (!alarm.isActive) return false;
+
     try {
-      // Cancel any existing notifications for this alarm
       await cancelNotification(alarm.id);
-      console.log('Cancelled existing notification for alarm:', alarm);
-      
-      // Get the next occurrence of this alarm with validation
-      const nextAlarmDate = ensureValidNextAlarmTime(alarm);
-      
-      if (!nextAlarmDate) {
-        return false;
-      }
-      
-      console.log('Scheduling alarm for:', nextAlarmDate.toLocaleString(), 'Current time:', new Date().toLocaleString());
-      
-      const title = alarm.label || 'Alarm';
-      const body = 'Your custom alarm is going off!';
-      
+
+      const nextAlarmTime = getNextAlarmTime(alarm);
+      if (!nextAlarmTime || nextAlarmTime <= new Date()) return false;
+
+      // Calculate seconds until alarm (as backup)
+      const secondsUntilAlarm = Math.max(
+        Math.floor((nextAlarmTime.getTime() - Date.now()) / 1000),
+        30 // Minimum 30-second buffer
+      );
+
+      console.log(`Scheduling for ${nextAlarmTime.toISOString()} (${secondsUntilAlarm}s)`);
+
       const identifier = await scheduleNotification({
         identifier: alarm.id,
-        title,
-        body,
-        data: { 
+        title: alarm.label || 'Alarm',
+        body: 'Your custom alarm is going off!',
+        sound: true,
+        data: {
           alarmId: alarm.id,
           audioPath: alarm.audioPath,
-          label: alarm.label
+          isAlarmNotification: true,
         },
-        trigger: { 
-          date: nextAlarmDate,
-          channelId: 'alarms' 
-        },
-        sound: true,
+        trigger: {
+          date: nextAlarmTime, // Pass date directly
+          type: 'date',
+        }
       });
-      
-      console.log('Successfully scheduled alarm notification with ID:', identifier);
+
+      console.log('Scheduled successfully:', identifier);
       return true;
     } catch (error) {
-      console.error('Failed to schedule alarm notification:', error);
+      console.error('Scheduling failed:', error);
       return false;
     }
   }, [hasPermission, requestPermission, scheduleNotification, cancelNotification]);
+
+  const getNextAlarmTime = (alarm: Alarm): Date | null => {
+    if (!alarm?.days?.some(day => day)) return null;
+
+    // Convert to 24-hour format
+    let hour = alarm.hours;
+    if (alarm.period === 'PM' && hour < 12) hour += 12;
+    if (alarm.period === 'AM' && hour === 12) hour = 0;
+
+    const now = new Date();
+    const currentDay = now.getDay();
+
+    // Check next 7 days
+    for (let offset = 0; offset < 7; offset++) {
+      const checkDayIndex = (currentDay + offset) % 7;
+
+      if (alarm.days[checkDayIndex]) {
+        const targetDate = new Date(now);
+        targetDate.setDate(now.getDate() + offset);
+        targetDate.setHours(hour, alarm.minutes, 0, 0);
+
+        // 30-second minimum buffer
+        if (targetDate.getTime() > now.getTime() + 30000) {
+          return targetDate;
+        }
+      }
+    }
+
+    return null;
+  };
 
   const cancelAlarmNotification = useCallback(async (alarmId: string) => {
     if (Platform.OS === 'web') {
       return;
     }
-    
+
     try {
       await cancelNotification(alarmId);
       console.log('Cancelled notification for alarm ID:', alarmId);
@@ -199,18 +199,17 @@ export function useNotifications() {
     }
   }, [cancelNotification]);
 
-  // Add this function to handle updating all alarms at once
   const scheduleAllAlarms = useCallback(async (alarms: Alarm[]) => {
     if (Platform.OS === 'web') {
       return;
     }
-    
+
     const activeAlarms = alarms.filter(alarm => alarm.isActive);
-    
+
     for (const alarm of activeAlarms) {
       await scheduleAlarmNotification(alarm);
     }
-    
+
     console.log(`Scheduled ${activeAlarms.length} active alarms`);
   }, [scheduleAlarmNotification]);
 

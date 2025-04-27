@@ -85,6 +85,57 @@
 //   return null;
 // }
 
+// import { Alarm } from '@/types/alarm';
+
+// export function getNextAlarmDate(alarm: Alarm): Date | null {
+//   const now = new Date();
+//   let hours = alarm.hours;
+//   const minutes = alarm.minutes;
+
+//   if (alarm.period === 'PM' && hours < 12) {
+//     hours += 12;
+//   }
+//   if (alarm.period === 'AM' && hours === 12) {
+//     hours = 0;
+//   }
+
+//   const today = new Date(
+//     now.getFullYear(),
+//     now.getMonth(),
+//     now.getDate(),
+//     hours,
+//     minutes,
+//     0,
+//     0
+//   );
+
+//   const isTodayAlarmDay = alarm.days[now.getDay()];
+//   const isTimeLaterToday = today.getTime() > now.getTime();
+
+//   if (isTodayAlarmDay && isTimeLaterToday) {
+//     return today;
+//   }
+
+//   // Otherwise, find the next valid day
+//   for (let i = 1; i <= 7; i++) {
+//     const nextDay = (now.getDay() + i) % 7;
+//     if (alarm.days[nextDay]) {
+//       const nextDate = new Date(
+//         now.getFullYear(),
+//         now.getMonth(),
+//         now.getDate() + i,
+//         hours,
+//         minutes,
+//         0,
+//         0
+//       );
+//       return nextDate;
+//     }
+//   }
+
+//   return null; // No valid alarm day selected
+// }
+
 import { Alarm } from '@/types/alarm';
 
 // Returns the next scheduled alarm Date or null if not valid
@@ -95,7 +146,8 @@ export function getNextAlarmDate(alarm: Alarm): Date | null {
   }
 
   const now = new Date();
-  const currentDay = now.getDay(); // 0 (Sun) - 6 (Sat)
+  const utcNow = new Date(now.getTime() + now.getTimezoneOffset() * 60000);
+  const currentDay = utcNow.getDay(); // 0 (Sun) - 6 (Sat)
 
   // Convert alarm time to 24-hour format
   let hours = alarm.hours;
@@ -106,28 +158,29 @@ export function getNextAlarmDate(alarm: Alarm): Date | null {
   }
 
   // Create today's alarm time
-  const alarmDate = new Date(now);
+  const alarmDate = new Date(utcNow);
   alarmDate.setHours(hours, alarm.minutes, 0, 0);
 
-  const bufferMs = 30 * 1000; // 30 seconds buffer
-
-  // Case 1: Alarm for today, but time has already passed
-  if (alarmDate.getTime() <= now.getTime() + bufferMs || !alarm.days[currentDay]) {
-    // Check next 7 days for active alarm
-    for (let i = 1; i <= 7; i++) {
-      const nextDay = (currentDay + i) % 7;
-      if (alarm.days[nextDay]) {
-        const futureDate = new Date(now);
-        futureDate.setDate(now.getDate() + i);
-        futureDate.setHours(hours, alarm.minutes, 0, 0);
-        return futureDate;
-      }
-    }
-    return null;
+  // If today is selected and time is at least 1 minute in the future, use today
+  if (
+    alarm.days[currentDay] &&
+    alarmDate.getTime() - utcNow.getTime() >= 60000 // at least 1 minute in future
+  ) {
+    return alarmDate;
   }
 
-  // Case 2: Alarm time today is in future and today is selected
-  return alarm.days[currentDay] ? alarmDate : null;
+  // Otherwise, find the next valid day
+  for (let i = 1; i <= 7; i++) {
+    const nextDay = (currentDay + i) % 7;
+    if (alarm.days[nextDay]) {
+      const futureDate = new Date(utcNow);
+      futureDate.setDate(utcNow.getDate() + i);
+      futureDate.setHours(hours, alarm.minutes, 0, 0);
+      return futureDate;
+    }
+  }
+
+  return null;
 }
 
 // Formats time into 12-hour string like "1:10 PM"

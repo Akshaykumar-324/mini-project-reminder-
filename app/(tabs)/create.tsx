@@ -14,7 +14,7 @@ export default function CreateAlarmScreen() {
   const { id } = useLocalSearchParams<{ id: string }>();
   const { getAlarm, saveAlarm } = useAlarms();
   
-  const [time, setTime] = useState({ hours: 8, minutes: 0, period: 'AM' });
+  const [time, setTime] = useState<{ hours: number; minutes: number; period: 'AM' | 'PM' }>({ hours: 8, minutes: 0, period: 'AM' });
   const [days, setDays] = useState([false, true, true, true, true, true, false]);
   const [audioPath, setAudioPath] = useState<string | null>(null);
   const [label, setLabel] = useState('');
@@ -47,7 +47,7 @@ export default function CreateAlarmScreen() {
       id: isEditing ? id : Date.now().toString(),
       hours: time.hours,
       minutes: time.minutes,
-      period: time.period,
+      period: time.period as 'AM' | 'PM',
       days,
       audioPath,
       label,

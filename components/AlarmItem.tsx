@@ -16,7 +16,7 @@ type AlarmItemProps = {
 
 export default function AlarmItem({ alarm, onToggle, onDelete }: AlarmItemProps) {
   const router = useRouter();
-  const weekdayText = getWeekdayLabels(alarm.days);
+  const weekdayText = getWeekdayLabels();
 
   const handleDelete = () => {
     Alert.alert(
