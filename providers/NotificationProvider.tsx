@@ -272,6 +272,7 @@ export default function NotificationProvider({ children }: NotificationProviderP
       content: {
         title: options.title,
         body: options.body,
+        categoryIdentifier: 'alarm',
         data: options.data || {},
         sound: options.sound ? true : undefined,
       },
