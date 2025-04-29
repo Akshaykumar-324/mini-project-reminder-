@@ -18,6 +18,7 @@ export default function SettingsScreen() {
   const [soundVolume, setSoundVolume] = useState(80);
   const [darkMode, setDarkMode] = useState(false);
   const [vibrate, setVibrate] = useState(true);
+  const [notificationPermission, setNotificationPermission] = useState(hasPermission);
 
   const handleClearAlarms = () => {
     Alert.alert(
@@ -90,6 +91,20 @@ export default function SettingsScreen() {
     }
   };
 
+  const handlePermissionToggle = async (value: boolean) => {
+    if (value) {
+      // If the user wants to enable notifications, request permission
+      const granted = await requestPermission();
+      if (!granted) {
+        // If permission is not granted, reset the switch to the previous state
+        Alert.alert("Permission Denied", "Notifications permission is required.");
+        return;
+      }
+    }
+    // If permission granted, update the state
+    setNotificationPermission(value);
+  };
+
   return (
     <View style={styles.container}>
       <Header title="Settings" />
@@ -101,13 +116,13 @@ export default function SettingsScreen() {
           <ListItem 
             icon={<Bell size={22} color={Colors.light.tint} />}
             title="Allow Notifications"
-            subtitle={hasPermission ? "Enabled" : "Disabled"}
+            subtitle={notificationPermission ? "Enabled" : "Disabled"}
             rightElement={
               <Switch 
-                value={hasPermission}
-                onValueChange={requestPermission}
+                value={notificationPermission}
+                onValueChange={handlePermissionToggle}
                 trackColor={{ false: '#d1d5db', true: '#bfdbfe' }}
-                thumbColor={hasPermission ? '#3b82f6' : '#9ca3af'}
+                thumbColor={notificationPermission ? '#3b82f6' : '#9ca3af'}
               />
             }
           />

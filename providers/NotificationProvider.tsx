@@ -185,7 +185,6 @@ export default function NotificationProvider({ children }: NotificationProviderP
   const [sound, setSound] = useState<Audio.Sound | null>(null);
   const { handleAlarmTrigger, snoozeAlarm, dismissAlarm } = useAlarms();
 
-  // Clean up sound when component unmounts
   useEffect(() => {
     return () => {
       if (sound) {
@@ -195,10 +194,7 @@ export default function NotificationProvider({ children }: NotificationProviderP
   }, [sound]);
 
   const checkPermissions = useCallback(async () => {
-    if (Platform.OS === 'web') {
-      return false;
-    }
-    
+    if (Platform.OS === 'web') return false;
     const { status } = await Notifications.getPermissionsAsync();
     const granted = status === 'granted';
     setHasPermission(granted);
@@ -206,10 +202,7 @@ export default function NotificationProvider({ children }: NotificationProviderP
   }, []);
 
   const requestPermission = useCallback(async () => {
-    if (Platform.OS === 'web') {
-      return false;
-    }
-    
+    if (Platform.OS === 'web') return false;
     const { status } = await Notifications.requestPermissionsAsync();
     const granted = status === 'granted';
     setHasPermission(granted);
@@ -218,7 +211,6 @@ export default function NotificationProvider({ children }: NotificationProviderP
 
   const playAlarmSound = useCallback(async (audioPath: string) => {
     try {
-      // Stop any currently playing sound
       if (sound) {
         await sound.stopAsync();
         await sound.unloadAsync();
@@ -226,13 +218,12 @@ export default function NotificationProvider({ children }: NotificationProviderP
       }
 
       console.log('Attempting to play audio from:', audioPath);
-      
-      // Load and play the new sound
+
       const { sound: newSound } = await Audio.Sound.createAsync(
         { uri: audioPath },
         { shouldPlay: true, isLooping: true, volume: 1.0 }
       );
-      
+
       setSound(newSound);
       console.log('Audio playback started successfully');
     } catch (error) {
@@ -254,11 +245,8 @@ export default function NotificationProvider({ children }: NotificationProviderP
   }, [sound]);
 
   const scheduleNotification = useCallback(async (options: NotificationOptions) => {
-    if (Platform.OS === 'web') {
-      return '';
-    }
-    
-    // Configure notification behavior
+    if (Platform.OS === 'web') return '';
+
     Notifications.setNotificationHandler({
       handleNotification: async () => ({
         shouldShowAlert: true,
@@ -266,8 +254,7 @@ export default function NotificationProvider({ children }: NotificationProviderP
         shouldSetBadge: true,
       }),
     });
-    
-    // Schedule the notification
+
     const identifier = await Notifications.scheduleNotificationAsync({
       content: {
         title: options.title,
@@ -279,23 +266,19 @@ export default function NotificationProvider({ children }: NotificationProviderP
       trigger: options.trigger,
       identifier: options.identifier,
     });
-    
+
     return identifier;
   }, []);
 
   const cancelNotification = useCallback(async (identifier: string) => {
-    if (Platform.OS === 'web') {
-      return;
-    }
-    
+    if (Platform.OS === 'web') return;
     await Notifications.cancelScheduledNotificationAsync(identifier);
   }, []);
 
   useEffect(() => {
     checkPermissions();
-    
+
     if (Platform.OS !== 'web') {
-      // Set up notification categories with actions
       Notifications.setNotificationCategoryAsync('alarm', [
         {
           identifier: 'SNOOZE',
@@ -319,15 +302,14 @@ export default function NotificationProvider({ children }: NotificationProviderP
         const data = notification.request.content.data;
         const alarmId = data?.alarmId;
         const audioPath = data?.audioPath;
-        
+
         console.log('Notification received:', { alarmId, audioPath });
-        
+
         if (alarmId) {
-          // Play the custom alarm sound if available
           if (audioPath) {
             playAlarmSound(audioPath);
           }
-          
+
           const alarm = {
             id: alarmId,
             audioPath: audioPath,
@@ -348,8 +330,9 @@ export default function NotificationProvider({ children }: NotificationProviderP
             id: alarmId,
             audioPath: data?.audioPath,
           };
-          
+
           if (actionId === 'SNOOZE') {
+            stopAlarmSound();
             snoozeAlarm(alarm);
           } else {
             stopAlarmSound();
@@ -366,7 +349,7 @@ export default function NotificationProvider({ children }: NotificationProviderP
         }
       };
     }
-  }, [handleAlarmTrigger, snoozeAlarm, dismissAlarm, playAlarmSound, stopAlarmSound, sound]);
+  }, [checkPermissions, handleAlarmTrigger, snoozeAlarm, dismissAlarm, playAlarmSound, stopAlarmSound, sound]);
 
   return (
     <NotificationContext.Provider
